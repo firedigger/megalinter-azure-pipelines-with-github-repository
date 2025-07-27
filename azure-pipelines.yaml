@@ -1,0 +1,38 @@
+trigger: none
+pr: none
+
+variables:
+- group: Github
+
+jobs:
+  # Run MegaLinter to detect linting and security issues
+  - job: MegaLinter
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+      # Checkout repo
+      - checkout: self
+
+      # Pull MegaLinter docker image
+      - script: docker pull oxsecurity/megalinter:v8
+        displayName: Pull MegaLinter
+
+      # Run MegaLinter
+      - script: |
+          docker run -v $(System.DefaultWorkingDirectory):/tmp/lint \
+            --env-file <(env | grep -e SYSTEM_ -e BUILD_ -e TF_ -e AGENT_) \
+            -e SYSTEM_ACCESSTOKEN=$(System.AccessToken) \
+            -e GIT_AUTHORIZATION_BEARER=$(System.AccessToken) \
+            -e GITHUB_TOKEN=$(GITHUB_TOKEN) \
+            -e GITHUB_REPOSITORY=firedigger/megalinter-azure-pipelines-with-github-repository \
+            -e GITHUB_SHA=$(Build.SourceVersion) \
+            oxsecurity/megalinter:v8
+        displayName: Run MegaLinter #TODO: replace GITHUB_REPOSITORY with your repository name
+
+      # Upload MegaLinter reports
+      - task: PublishPipelineArtifact@1
+        condition: succeededOrFailed()
+        displayName: Upload MegaLinter reports
+        inputs:
+          targetPath: "$(System.DefaultWorkingDirectory)/megalinter-reports/"
+          artifactName: MegaLinterReport
